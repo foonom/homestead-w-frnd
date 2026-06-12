@@ -1,0 +1,115 @@
+services:
+  mc-java:
+    image: itzg/minecraft-server:latest
+    depends_on:
+      restore-backup:
+        condition: service_completed_successfully
+    user: "1001:1001"
+    container_name: mc-java
+    stdin_open: true
+    tty: true
+    ports:
+      - "25565:25565"
+    environment:
+      TZ: "UTC"
+      UID: 1001
+      PUID: "1001"
+      PGID: "1001"
+      EULA: "TRUE"
+      VERSION: "1.21.11"
+      TYPE: "FABRIC"
+      MEMORY: "9G"
+      SERVER_PORT: "25565" # Tells the Minecraft server to bind to 25575
+      MOTD: "Server 3: Kinetic Jubilee"
+      ONLINE_MODE: "false"
+      ENABLE_COMMAND_BLOCK: "true"
+      SEED: "-9079713339616171283"
+      MAX_TICK_TIME: "-1"
+      OPS: "${SERVER_OP}"
+      OP_PERMISSION_LEVEL: "4"
+      SPAWN_PROTECTION: "0"
+      MODE: "1"
+      FORCE_GAMEMODE: "true"
+      ENFORCE_SECURE_PROFILE: "false"
+      LOG_IPS: "false"
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "${RCON_PASSWD}"
+      RCON_PORT: 25575
+      RCON_CMDS_STARTUP:  |-
+        op ${SERVER_OP}
+        say hello world
+        carpet scripts_optimization true
+        carpet lagFreeSpawning true
+        
+      MODRINTH_DOWNLOAD_DEPENDENCIES: "required"
+      MODRINTH_ALLOWED_VERSION_TYPE: "alpha"
+      MODRINTH_PROJECTS: |-
+        fabric-api
+        no-chat-reports
+        lithium
+        ferrite-core
+        krypton
+        debugify
+        distanthorizons
+        c2me-fabric
+        worldedit
+        carpet
+    volumes:
+      - "./mc_data:/data"
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+  
+  restore-backup:
+    image: itzg/mc-backup
+    environment:
+      TZ: "UTC"
+      INITIAL_DELAY: 0
+      REMOVE_DATA_BEFORE_RESTORE: true
+    user: "1001:1001"
+    restart: "no"
+    entrypoint: restore-tar-backup
+    volumes:
+      - ./mc_data:/data
+      - ./mc_backups:/backups:ro
+  backup-mc:
+    image: itzg/mc-backup
+    user: "1001:1001"
+    depends_on:
+      mc-java:
+        condition: service_healthy
+    environment:
+      TZ: "UTC"
+      UID: 1001
+      PUID: "1001"
+      PGID: "1001"
+      BACKUP_INTERVAL: "5m"
+      RCON_HOST: mc-java
+      RCON_PASSWORD: "${RCON_PASSWD}"
+      PAUSE_IF_NO_PLAYERS: true
+      PLAYERS_ONLINE_CHECK_INTERVAL: "2m"
+      INITIAL_DELAY: 0
+      TAR_COMPRESS_METHOD: lzma
+      PRUNE_BACKUPS_DAYS: -1
+      PRE_BACKUP_SCRIPT: |
+        #echo "Deleting unnecessary backups..."
+        #rclone lsf foo_inf:mc_backups/ --files-only | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile foo_inf:mc_backups/{}
+        echo "before backup, from $$RCON_HOST to $$DEST_DIR"
+      POST_BACKUP_SCRIPT: |
+        echo "Deleting unnecessary backups..."
+        rclone lsf /backups/ --files-only --include "*.lzma" | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile /backups/{} -v
+        
+        rclone sync /backups foo_inf:mc_backups/ --fast-list --size-only --no-traverse --retries 3 --retries-sleep 10s
+        echo "Backup to rclone remote complete"
+    volumes:
+      - ./rclone.conf:/config/rclone/rclone.conf:ro
+      - ./mc_data:/data:ro
+      - "./mc_backups:/backups"
+
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:0.17
+    container_name: playit-agent
+    network_mode: host
+    environment:
+      - SECRET_KEY=${PLAYIT_SECRET}
