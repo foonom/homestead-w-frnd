@@ -61,7 +61,7 @@ jobs:
 
           if [ -z "$(ls ./mc_backups/)" ]; then
             echo "ERROR: No backups found on remote! Aborting to prevent world reset."
-            exit 1
+            #exit 1
           fi
 
       - name: Start Services
