@@ -41,10 +41,13 @@ services:
         #carpet scripts_optimization true
         #carpet lagFreeSpawning true
         
-      MODRINTH_DOWNLOAD_DEPENDENCIES: "optional"
+      #MODRINTH_DOWNLOAD_DEPENDENCIES: "optional"
       #MODRINTH_ALLOWED_VERSION_TYPE: "alpha"
       #MODRINTH_PROJECTS:
-      MODRINTH_MODPACK: "https://modrinth.com/modpack/homestead/version/1.3.7"
+      MODPACK_PLATFORM: AUTO_CURSEFORGE
+      CF_API_KEY: "${CF}"
+      CF_PAGE_URL: "https://www.curseforge.com/minecraft/modpacks/homestead-cozy/files/8110152"
+      #MODRINTH_MODPACK: "https://modrinth.com/modpack/homestead/version/1.3.7"
     volumes:
       - "./mc_data:/data"
     deploy:
