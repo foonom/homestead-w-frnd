@@ -16,20 +16,20 @@ services:
       PUID: "1001"
       PGID: "1001"
       EULA: "TRUE"
-      VERSION: "1.21.11"
+      VERSION: "1.20.1"
       TYPE: "FABRIC"
-      MEMORY: "9G"
+      MEMORY: "10G"
       SERVER_PORT: "25565" # Tells the Minecraft server to bind to 25575
-      MOTD: "Server 3: Kinetic Jubilee"
+      MOTD: "Homestead with friends"
       ONLINE_MODE: "false"
       ENABLE_COMMAND_BLOCK: "true"
-      SEED: "-9079713339616171283"
+      #SEED: "-9079713339616171283"
       MAX_TICK_TIME: "-1"
       OPS: "${SERVER_OP}"
       OP_PERMISSION_LEVEL: "4"
       SPAWN_PROTECTION: "0"
-      MODE: "1"
-      FORCE_GAMEMODE: "true"
+      MODE: "0"
+      FORCE_GAMEMODE: "false"
       ENFORCE_SECURE_PROFILE: "false"
       LOG_IPS: "false"
       ENABLE_RCON: "true"
@@ -38,22 +38,13 @@ services:
       RCON_CMDS_STARTUP:  |-
         op ${SERVER_OP}
         say hello world
-        carpet scripts_optimization true
-        carpet lagFreeSpawning true
+        #carpet scripts_optimization true
+        #carpet lagFreeSpawning true
         
-      MODRINTH_DOWNLOAD_DEPENDENCIES: "required"
-      MODRINTH_ALLOWED_VERSION_TYPE: "alpha"
+      MODRINTH_DOWNLOAD_DEPENDENCIES: "optional"
+      #MODRINTH_ALLOWED_VERSION_TYPE: "alpha"
       MODRINTH_PROJECTS: |-
-        fabric-api
-        no-chat-reports
-        lithium
-        ferrite-core
-        krypton
-        debugify
-        distanthorizons
-        c2me-fabric
-        worldedit
-        carpet
+        fabric:homestead:6HvKwSky
     volumes:
       - "./mc_data:/data"
     deploy:
@@ -100,7 +91,7 @@ services:
         echo "Deleting unnecessary backups..."
         rclone lsf /backups/ --files-only --include "*.lzma" | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile /backups/{} -v
         
-        rclone sync /backups foo_inf:mc_backups/ --fast-list --size-only --no-traverse --retries 3 --retries-sleep 10s
+        rclone sync /backups foo_inf:mc_hm/ --fast-list --size-only --no-traverse --retries 3 --retries-sleep 10s
         echo "Backup to rclone remote complete"
     volumes:
       - ./rclone.conf:/config/rclone/rclone.conf:ro
