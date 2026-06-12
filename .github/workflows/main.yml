@@ -69,10 +69,12 @@ jobs:
           PLAYIT_SECRET: ${{ secrets.PLAYIT_SECRET }}
           SERVER_OP: ${{ secrets.SERVER_OP }}
           RCON_PASSWD: ${{ secrets.RCON_PASSWD }}
+          CF: ${{ secrets.CF }}
         run: |
           echo "PLAYIT_SECRET=$PLAYIT_SECRET" > .env
           echo "SERVER_OP=$SERVER_OP" >> .env
           echo "RCON_PASSWD=$RCON_PASSWD" >> .env
+          echo "CF=$CF" >> .env
 
           echo $START_TIME
           
