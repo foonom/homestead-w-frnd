@@ -44,7 +44,7 @@ services:
       MODRINTH_DOWNLOAD_DEPENDENCIES: "optional"
       #MODRINTH_ALLOWED_VERSION_TYPE: "alpha"
       MODRINTH_PROJECTS: |-
-        fabric:homestead:6HvKwSky
+        6HvKwSky
     volumes:
       - "./mc_data:/data"
     deploy:
