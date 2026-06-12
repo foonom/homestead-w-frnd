@@ -54,9 +54,9 @@ jobs:
           rclone config paths
           
           # Delete old backups first
-          rclone lsf foo_inf:mc_backups/ --files-only --include "*.lzma" | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile foo_inf:mc_backups/{} -v
+          rclone lsf foo_inf:mc_hm/ --files-only --include "*.lzma" | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile foo_inf:mc_hm/{} -v
 
-          rclone copy -v foo_inf:mc_backups/ ./mc_backups/
+          rclone copy -v foo_inf:mc_hm/ ./mc_backups/
           rm -f ./mc_backups/.mc-backup-lock
 
           if [ -z "$(ls ./mc_backups/)" ]; then
@@ -162,11 +162,11 @@ jobs:
             
             echo "Starting backup process..."
             #docker exec backup-mc backup now || echo "Couldn't call backup-mc"
-            #rclone sync ./mc_backups/ foo_inf:mc_backups/
-            #rclone lsf foo_inf:mc_backups/ --files-only --include "*.tar.lzma" | sort | head -n -5 | xargs -I{} -r rclone deletefile foo_inf:mc_backups/{}
-            #rclone delete foo_inf:mc_backups/ --min-age 6h --dry-run
-            #rclone delete foo_inf:mc_backups/ --min-age 6h
-            #rclone sync foo_inf:mc_backups/ ./mc_backups/
+            #rclone sync ./mc_backups/ foo_inf:mc_hm/
+            #rclone lsf foo_inf:mc_hm/ --files-only --include "*.tar.lzma" | sort | head -n -5 | xargs -I{} -r rclone deletefile foo_inf:mc_hm/{}
+            #rclone delete foo_inf:mc_hm/ --min-age 6h --dry-run
+            #rclone delete foo_inf:mc_hm/ --min-age 6h
+            #rclone sync foo_inf:mc_hm/ ./mc_backups/
             echo "Backup done!"
 
             cd /tmp/tqdm
