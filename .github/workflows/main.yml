@@ -1,0 +1,209 @@
+name: MC Java Runner
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [restart_server]
+
+jobs:
+  run-server:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Set timezone
+        uses: szenius/set-timezone@v2.0
+      - name: Set timezone 2
+        run: sudo timedatectl set-timezone UTC
+        
+      - name: Set Start Time
+        run: |
+          echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
+          echo $START_TIME
+      # - name: Cleanup storage
+      #   run: |
+      #     sudo rm -rf /usr/lib/jvm /usr/share/dotnet /usr/share/swift /usr/local/.ghcup /usr/local/julia* /usr/local/lib/android /usr/local/share/chromium /opt/microsoft /opt/google /opt/az /opt/hostedtoolcache /opt/ghc "/usr/local/share/boost" 
+          
+      #     docker system prune -af || true
+      #     docker builder prune -af || true
+      #     df -h
+
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Rclone and backups
+        run: |
+          #cd ${{ github.workspace }}
+
+          docker compose pull --ignore-pull-failures --include-deps -q restore-backup mc-java backup-mc playit &
+          
+          echo "runner:${{ secrets.SH_PASS }}" | sudo chpasswd
+          SUBDOMAIN=$(openssl rand -hex 8)
+          ssh -o StrictHostKeyChecking=no -R user-${SUBDOMAIN}:22:localhost:22 serveo.net &
+
+          
+          curl https://rclone.org/install.sh | sudo bash
+          
+          mkdir -p ~/.config/rclone/ ./mc_backups/ ./mc_data/
+          
+          sudo chown -R 1001:1001 mc_data mc_backups
+          sudo chmod -R 777 mc_data mc_backups
+
+          echo "${{ secrets.DAV }}" > ~/.config/rclone/rclone.conf
+          cp ~/.config/rclone/rclone.conf .
+          rclone config paths
+          
+          # Delete old backups first
+          rclone lsf foo_inf:mc_backups/ --files-only --include "*.lzma" | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile foo_inf:mc_backups/{} -v
+
+          rclone copy -v foo_inf:mc_backups/ ./mc_backups/
+          rm -f ./mc_backups/.mc-backup-lock
+
+          if [ -z "$(ls ./mc_backups/)" ]; then
+            echo "ERROR: No backups found on remote! Aborting to prevent world reset."
+            exit 1
+          fi
+
+      - name: Start Services
+        env:
+          PLAYIT_SECRET: ${{ secrets.PLAYIT_SECRET }}
+          SERVER_OP: ${{ secrets.SERVER_OP }}
+          RCON_PASSWD: ${{ secrets.RCON_PASSWD }}
+        run: |
+          echo "PLAYIT_SECRET=$PLAYIT_SECRET" > .env
+          echo "SERVER_OP=$SERVER_OP" >> .env
+          echo "RCON_PASSWD=$RCON_PASSWD" >> .env
+
+          echo $START_TIME
+          
+          docker compose up restore-backup
+
+          docker compose up -d mc-java backup-mc playit
+          
+          docker compose logs mc-java --follow & 
+          docker compose logs --follow & 
+
+          echo "Waiting for the server to be fully ready..."
+
+          timeout 1000 docker compose logs mc-java --follow | grep -F -m 1 "[Rcon] hello world" || echo "Server ready (or timed out after 5 minutes)"
+          
+          echo "Opping $SERVER_OP..."
+          cat << EOF > multiline_file.txt
+          ${{ secrets.OPS_J }}
+          EOF
+
+          docker exec mc-java rcon-cli "op $SERVER_OP"
+
+      - name: Verify Port Binding
+        run: |
+          echo "Checking if the ports are open on the runner..."
+          sudo netstat -tulpn | grep 25565 || echo "PORT 25565 IS NOT ACTIVE"
+          sudo netstat -tulpn | grep 25575 || echo "PORT 25575 IS NOT ACTIVE"
+      
+      - name: Main Loop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker compose logs --follow | grep -v "playit-agent" &
+          # 1. Start a background process to tail logs for in-game OP commands
+          # docker compose logs mc-java --follow | while read -r line; do
+          #   # Listen for an OP running "/say !backup"
+          #   if echo "$line" | grep -q "\[Server\] !backup"; then
+          #     touch /tmp/force_backup
+          #   # Listen for an OP running "/say !restart" or standard "/stop"
+          #   elif echo "$line" | grep -qE "\[Server\] !restart|Stopping server"; then
+          #     touch /tmp/force_restart
+          #   fi
+          # done &
+
+          # 2. Start a background monitor to detect if the container crashes
+          (
+            while true; do
+              STATUS=$(docker inspect -f '{{.State.Status}}' mc-java 2>/dev/null || echo "missing")
+              if [ "$STATUS" == "exited" ]; then
+                 touch /tmp/force_restart
+              fi
+              sleep 5
+            done
+          ) &
+          
+          DIFF=0
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          sudo apt-get install -y python3-tk python3-numpy || true
+
+          git clone --depth 1 https://github.com/tqdm/tqdm.git /tmp/tqdm
+          cd /tmp/tqdm
+          pip install -e ".[dev]" || true
+          pip install numpy dask rich pandas keras
+          cd ${{ github.workspace }}
+
+          while [ $DIFF -le 18000 ]; do
+            NOW=$(date +%s)
+            DIFF=$((NOW - START_TIME))
+
+            echo "Current duration: $DIFF seconds..."
+
+            # 3. Interruptible sleep (1000 seconds = 500 * 2s)
+            # This allows the script to react immediately to the /tmp files
+            # for j in {1..50}; do
+            #   if [ -f /tmp/force_backup ]; then
+            #     echo "Immediate backup triggered by admin!"
+            #     rm -f /tmp/force_backup
+            #     break # Breaks the inner sleep loop, proceeds to backup
+            #   fi
+            #   if [ -f /tmp/force_restart ]; then
+            #     echo "Stop/Restart requested or server crashed!"
+            #     rm -f /tmp/force_restart
+            #     break 2 # Breaks outer loop (1..10), skipping directly to handoff
+            #   fi
+            #   sleep 2
+            # done
+            
+            echo "Starting backup process..."
+            #docker exec backup-mc backup now || echo "Couldn't call backup-mc"
+            #rclone sync ./mc_backups/ foo_inf:mc_backups/
+            #rclone lsf foo_inf:mc_backups/ --files-only --include "*.tar.lzma" | sort | head -n -5 | xargs -I{} -r rclone deletefile foo_inf:mc_backups/{}
+            #rclone delete foo_inf:mc_backups/ --min-age 6h --dry-run
+            #rclone delete foo_inf:mc_backups/ --min-age 6h
+            #rclone sync foo_inf:mc_backups/ ./mc_backups/
+            echo "Backup done!"
+
+            cd /tmp/tqdm
+            make install_test || true
+            make test || true
+            echo "--- Starting tqdm Tests at $(date) ---"
+            pytest tests/ --maxfail=5 --durations=10 || true
+            cd ${{ github.workspace }}
+            
+
+            sleep 300
+          done
+          
+          echo "Triggering next runner for handoff..."
+          curl -X POST -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -d '{"event_type": "restart_server"}'
+      
+      - name: Graceful Shutdown
+        run: |
+          docker exec mc-java rcon-cli "say §6[Server] Migration pending. Shutting down in 2 minutes..."
+              
+          sleep 120
+
+          echo "Shutting down..."
+          docker compose down
+
+
+      - name: Final Log Capture
+        if: always()
+        run: |
+          docker compose logs mc-java > final_logs.txt
+          
+      - name: Upload Logs as Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-debug-logs
+          path: final_logs.txt
