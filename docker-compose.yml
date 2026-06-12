@@ -85,7 +85,7 @@ services:
       PRUNE_BACKUPS_DAYS: -1
       PRE_BACKUP_SCRIPT: |
         #echo "Deleting unnecessary backups..."
-        #rclone lsf foo_inf:mc_backups/ --files-only | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile foo_inf:mc_backups/{}
+        #rclone lsf foo_inf:mc_hm/ --files-only | sort -r | sed '1,5d' | xargs -I{} -r rclone deletefile foo_inf:mc_hm/{}
         echo "before backup, from $$RCON_HOST to $$DEST_DIR"
       POST_BACKUP_SCRIPT: |
         echo "Deleting unnecessary backups..."
